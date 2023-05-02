@@ -1,15 +1,14 @@
 package main
-
 import (
 	"fmt"
+	"github.com/TafveezA/P2P-GoDApplication/p2p"
 
-	"github.com/TafveezA/P2P-GoDApplication/deck"
 )
 
-func main() {
-	for j := 0; j < 10; j++ {
-		d := deck.Shuffle(deck.New())
-		fmt.Println(d)
-		fmt.Println()
+func main(){
+	cfg := p2p.ServerConfig{
+		listenAddr: ":3000"
 	}
+	server := p2p.NewServer(cfg)
+	server.start()
 }
