@@ -1,6 +1,11 @@
 package deck
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+	"strconv"
+	"time"
+)
 
 type Suit int
 
@@ -33,7 +38,11 @@ type Card struct {
 }
 
 func (c Card) String() string {
-	return fmt.Sprintf("%d of %s %s", c.value, c.suit)
+	value := strconv.Itoa(c.value)
+	if c.value == 1 {
+		value = "ACE"
+	}
+	return fmt.Sprintf("%s of %s %s", value, c.suit, suitToUnicode(c.suit))
 }
 
 func NewCard(s Suit, v int) Card {
@@ -44,6 +53,35 @@ func NewCard(s Suit, v int) Card {
 		suit:  s,
 		value: v,
 	}
+}
+
+type Deck [52]Card
+
+func New() Deck {
+	var (
+		nSuits = 4
+		nCards = 13
+		d      = [52]Card{}
+	)
+	x := 0
+	for i := 0; i < nSuits; i++ {
+		for j := 0; j < nCards; j++ {
+			d[x] = NewCard(Suit(i), j+1)
+			x++
+		}
+
+	}
+	return d
+}
+
+func Shuffle(d Deck) Deck {
+	source := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(source)
+	for i := range d {
+		newPosition := r.Intn(len(d) - 1)
+		d[i], d[newPosition] = d[newPosition], d[i]
+	}
+	return d
 }
 
 func suitToUnicode(s Suit) string {
