@@ -1,4 +1,4 @@
-package server
+package p2p
 
 import (
 	"fmt"
@@ -6,21 +6,31 @@ import (
 	"sync"
 )
 
-type TCPTransport struct {
-}
-
 type Peer struct {
 	conn net.Conn
 }
-type ServerConfig struct {
-	listenAddr string
+
+func (p *Peer) Send(b []byte) error {
+	_, err := p.conn.Write(b)
+	return err
 }
+
+type ServerConfig struct {
+	ListenAddr string
+}
+type Message struct {
+	Payload []byte
+	From    net.Addr
+}
+
 type Server struct {
 	ServerConfig
+	handler  Handler
 	listener net.Listener
 	mu       sync.RWMutex
 	peers    map[net.Addr]*Peer
 	addPeer  chan *Peer
+	msgCh    chan *Message
 }
 
 func NewServer(cfg ServerConfig) *Server {
@@ -28,6 +38,7 @@ func NewServer(cfg ServerConfig) *Server {
 		ServerConfig: cfg,
 		peers:        make(map[net.Addr]*Peer),
 		addPeer:      make(chan *Peer),
+		msgCh:        make(chan *Message),
 	}
 }
 
@@ -36,12 +47,8 @@ func (s *Server) Start() {
 	if err := s.listen(); err != nil {
 		panic(err)
 	}
-	conn, err := s.listener.Accept()
-	if err != nil {
-		panic(err)
-	}
-
-	go s.handleConn(conn)
+	fmt.Printf("Game Server is running on port %s\n ", s.ListenAddr)
+	s.acceptLoop()
 
 }
 func (s *Server) handleConn(conn net.Conn) {
@@ -50,6 +57,9 @@ func (s *Server) handleConn(conn net.Conn) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			break
+		}
+		s.msgCh <- &Message{
+			From:conn.RemoteAddr()
 		}
 		fmt.Println(string(buf[:n]))
 
@@ -63,11 +73,16 @@ func (s *Server) acceptLoop() {
 		if err != nil {
 			panic(err)
 		}
+		peer := &Peer{
+			conn: conn,
+		}
+		s.addPeer <- peer
+		peer.Send([]byte("P2PGame v0.1-alpha"))
 		go s.handleConn(conn)
 	}
 }
 func (s *Server) listen() error {
-	ln, err := net.Listen("tcp", s.listenAddr)
+	ln, err := net.Listen("tcp", s.ListenAddr)
 	if err != nil {
 		return err
 	}
@@ -80,7 +95,7 @@ func (s *Server) loop() {
 		select {
 		case peer := <-s.addPeer:
 			s.peers[peer.conn.RemoteAddr()] = peer
-			fmt.Printf("new player connected %s", peer.conn.RemoteAddr())
+			fmt.Printf("new player connected %s\n", peer.conn.RemoteAddr())
 		}
 	}
 }
