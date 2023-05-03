@@ -1,5 +1,5 @@
 # P2P-GoDApplication
-#To build
+# To build
 make build
 # To run
 make run
