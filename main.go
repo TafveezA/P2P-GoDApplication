@@ -1,34 +1,35 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"time"
 
-	"github.com/TafveezA/P2P-GoDApplication/deck"
 	"github.com/TafveezA/P2P-GoDApplication/p2p"
 )
 
 func main() {
 	cfg := p2p.ServerConfig{
-		Version:    "P2PGame v0.1-alpha",
-		ListenAddr: ":3000",
+		Version:     "P2PGame v0.1-alpha",
+		ListenAddr:  ":3000",
+		GameVariant: p2p.TexasHoldem,
 	}
 	server := p2p.NewServer(cfg)
 	go server.Start()
 	time.Sleep(1 * time.Second)
 
 	remotecfg := p2p.ServerConfig{
-		Version:    "P2PGame v0.1-alpha",
-		ListenAddr: ":4000",
+		Version:     "P2PGame v0.1-alpha",
+		ListenAddr:  ":4000",
+		GameVariant: p2p.TexasHoldem,
 	}
 
 	remoteServer := p2p.NewServer(remotecfg)
 	go remoteServer.Start()
 	if err := remoteServer.Connect(":3000"); err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
-	fmt.Println(deck.New())
+	//fmt.Println(deck.New())
 	select {}
 
 }
