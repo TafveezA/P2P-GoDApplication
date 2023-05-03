@@ -27,6 +27,8 @@ func main() {
 	if err := remoteServer.Connect(":3000"); err != nil {
 		fmt.Println(err)
 	}
+
 	fmt.Println(deck.New())
+	select {}
 
 }
