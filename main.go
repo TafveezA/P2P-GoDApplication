@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TafveezA/P2P-GoDApplication/deck"
 	"github.com/TafveezA/P2P-GoDApplication/p2p"
 )
 
@@ -26,6 +27,6 @@ func main() {
 	if err := remoteServer.Connect(":3000"); err != nil {
 		fmt.Println(err)
 	}
-	select {}
+	fmt.Println(deck.New())
 
 }
