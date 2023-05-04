@@ -2,10 +2,8 @@ package p2p
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/gob"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -38,7 +36,7 @@ type ServerConfig struct {
 
 type Server struct {
 	ServerConfig
-	handler   Handler
+
 	transport *TCPTransport
 	listener  net.Listener
 	peers     map[net.Addr]*Peer
@@ -70,8 +68,9 @@ func (s *Server) Start() {
 
 	fmt.Printf("Game Server is running on port %s\n ", s.ListenAddr)
 	logrus.WithFields(logrus.Fields{
-		"port":    s.ListenAddr,
-		"variant": s.GameVariant,
+		"port":       s.ListenAddr,
+		"variant":    s.GameVariant,
+		"gameStatus": s.GameState.gameStatus,
 	}).Info("Started New game Server")
 	s.transport.ListenAndAccept()
 
@@ -80,6 +79,7 @@ func (s *Server) sendHandshake(p *Peer) error {
 	hs := &Handshake{
 		GameVariant: s.GameVariant,
 		Version:     s.Version,
+		GameStatus:  s.GameState.gameStatus,
 	}
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(hs); err != nil {
@@ -102,7 +102,7 @@ func (s *Server) Connect(addr string) error {
 		conn: conn,
 	}
 	s.addPeer <- peer
-	return peer.Send([]byte(s.Version))
+	return s.sendHandshake(peer)
 }
 
 func (s *Server) acceptLoop() {
@@ -132,16 +132,26 @@ func (s *Server) loop() {
 			// if new person connects  to the server
 			fmt.Printf("player disconnected %s\n", peer.conn.RemoteAddr())
 		case peer := <-s.addPeer:
-			go s.sendHandshake(peer)
+
 			if err := <-s.addPeer; err != nil {
-				logrus.Info("handshake successful:handshake with incoming player failed")
+				logrus.Errorf("%s:handshake with incoming player failed:%s ", s.ListenAddr, err)
+				delete(s.peers, peer.conn.RemoteAddr())
+				peer.conn.Close()
 				continue
 			}
 			// to check max player logic
 			go peer.ReadLoop(s.msgCh)
+			if !peer.outbound {
+				if err := s.sendHandshake(peer); err != nil {
+					logrus.Errorf("Failed to send handshake with peer: %s", err)
+					peer.conn.Close()
+					delete(s.peers, peer.conn.RemoteAddr())
+					continue
+				}
+			}
 			logrus.WithFields(logrus.Fields{
 				"addr": peer.conn.RemoteAddr(),
-			}).Info("New Player connected")
+			}).Info("handshake successful:New Player connected")
 			s.peers[peer.conn.RemoteAddr()] = peer
 			fmt.Printf("new player connected %s\n", peer.conn.RemoteAddr())
 		case msg := <-s.msgCh:
@@ -150,24 +160,6 @@ func (s *Server) loop() {
 			}
 		}
 	}
-}
-func (hs *Handshake) Encode(w io.Writer) error {
-	if err := binary.Write(w, binary.BigEndian, []byte(hs.Version)); err != nil {
-		return err
-	}
-	return binary.Write(w, binary.LittleEndian, &hs.GameVariant)
-}
-func (hs *Handshake) Decode(r io.Reader) error {
-	if err := binary.Read(r, binary.LittleEndian, []byte(hs.Version)); err != nil {
-		return err
-	}
-
-	return binary.Read(r, binary.LittleEndian, &hs.GameVariant)
-}
-
-type Handshake struct {
-	Version     string
-	GameVariant GameVariant
 }
 
 func (s *Server) handshake(p *Peer) error {
@@ -180,16 +172,18 @@ func (s *Server) handshake(p *Peer) error {
 	// 	return err
 	// }
 	if s.GameVariant != hs.GameVariant {
-		return fmt.Errorf("Invalid Game Variant %s", hs.GameVariant)
+		return fmt.Errorf(" Game Variant does not match %s", hs.GameVariant)
 	}
 	if s.GameVariant != hs.GameVariant {
 		return fmt.Errorf("Invalid version %s", hs.Version)
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"peer":    p.conn.RemoteAddr(),
-		"version": hs.Version,
-		"variant": hs.GameVariant}).Info("Recieved Handshake")
+		"peer":       p.conn.RemoteAddr(),
+		"version":    hs.Version,
+		"variant":    hs.GameVariant,
+		"gameStatus": hs.GameStatus}).Info("Recieved Handshake")
+
 	return nil
 
 }
