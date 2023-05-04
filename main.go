@@ -15,7 +15,7 @@ func main() {
 	}
 	server := p2p.NewServer(cfg)
 	go server.Start()
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	remotecfg := p2p.ServerConfig{
 		Version:     "P2PGame v0.1-alpha",
@@ -29,7 +29,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//fmt.Println(deck.New())
 	select {}
 
 }

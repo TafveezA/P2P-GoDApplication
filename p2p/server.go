@@ -2,8 +2,10 @@ package p2p
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -43,6 +45,7 @@ type Server struct {
 	addPeer   chan *Peer
 	delPeer   chan *Peer
 	msgCh     chan *Message
+	GameState *GameState
 }
 
 func NewServer(cfg ServerConfig) *Server {
@@ -53,6 +56,7 @@ func NewServer(cfg ServerConfig) *Server {
 		addPeer:      make(chan *Peer),
 		delPeer:      make(chan *Peer),
 		msgCh:        make(chan *Message),
+		GameState:    NewGameState(),
 	}
 	tr := NewTCPTransport(s.ListenAddr)
 	s.transport = tr
@@ -81,6 +85,9 @@ func (s *Server) sendHandshake(p *Peer) error {
 	if err := gob.NewEncoder(buf).Encode(hs); err != nil {
 		return err
 	}
+	// if err := hs.Encode(buf); err != nil {
+	// 	return err
+	// }
 	return p.Send(buf.Bytes())
 }
 
@@ -122,11 +129,12 @@ func (s *Server) loop() {
 				"addr": peer.conn.RemoteAddr(),
 			}).Info("Player disconnected")
 			delete(s.peers, peer.conn.RemoteAddr())
+			// if new person connects  to the server
 			fmt.Printf("player disconnected %s\n", peer.conn.RemoteAddr())
 		case peer := <-s.addPeer:
-			go s.handshake(peer)
+			go s.sendHandshake(peer)
 			if err := <-s.addPeer; err != nil {
-				logrus.Info("handshake with incoming player failed")
+				logrus.Info("handshake successful:handshake with incoming player failed")
 				continue
 			}
 			// to check max player logic
@@ -143,6 +151,19 @@ func (s *Server) loop() {
 		}
 	}
 }
+func (hs *Handshake) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.BigEndian, []byte(hs.Version)); err != nil {
+		return err
+	}
+	return binary.Write(w, binary.LittleEndian, &hs.GameVariant)
+}
+func (hs *Handshake) Decode(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, []byte(hs.Version)); err != nil {
+		return err
+	}
+
+	return binary.Read(r, binary.LittleEndian, &hs.GameVariant)
+}
 
 type Handshake struct {
 	Version     string
@@ -154,6 +175,15 @@ func (s *Server) handshake(p *Peer) error {
 	if err := gob.NewDecoder(p.conn).Decode(hs); err != nil {
 
 		return err
+	}
+	// if err := hs.Decode(p.conn); err !=nil{
+	// 	return err
+	// }
+	if s.GameVariant != hs.GameVariant {
+		return fmt.Errorf("Invalid Game Variant %s", hs.GameVariant)
+	}
+	if s.GameVariant != hs.GameVariant {
+		return fmt.Errorf("Invalid version %s", hs.Version)
 	}
 
 	logrus.WithFields(logrus.Fields{
