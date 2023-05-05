@@ -32,14 +32,21 @@ const (
 )
 
 type GameRound uint8
+type Player struct {
+	Status GameStatus
+}
 
 type GameState struct {
 	isDealer   bool // atomic accesable
 	gameStatus GameStatus
+	Players    map[string]*Player
 }
 
 func NewGameState() *GameState {
-	return &GameState{}
+	return &GameState{
+		isDealer:   false,
+		gameStatus: status,
+	}
 }
 func (g *GameState) loop() {
 	for {
